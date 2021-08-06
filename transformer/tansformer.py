@@ -29,3 +29,24 @@ class PositionalEncoding(nn.Module):
     
     def forward(self, x):
         return x + self.pe[:, :x.size(1)].detach()
+
+def create_mask(src: torch.Tensor, trg: torch.Tensor, src_pad_idx: int, trg_pad_idx: int):
+    src_mask = _create_padding_mask(src, src_pad_idx)
+    trg_mask = None
+    if trg is not None:
+        trg_mask = _create_padding_mask(trg, trg_pad_idx)
+        nopeak_mask = _create_nopeak_mask(trg)
+        trg_mask = trg_mask & nopeak_mask
+
+    return src_mask, trg_mask
+
+def _create_padding_mask(seq: torch.Tensor, pad_idx: int):
+    return (seq != pad_idx).unsqueeze(-2)
+
+def _create_nopeak_mask(trg):
+    batch_size, seq_len = trg.size()
+    nopeak_mask = (1 - torch.triu(torch.ones(1, seq_len, seq_len, device = trg.device), diagonal=1)).bool()
+    return nopeak_mask
+
+class MultiHeadAttention(nn.Module):
+    
