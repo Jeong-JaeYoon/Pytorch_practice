@@ -4,6 +4,7 @@
 import math
 import torch
 import torch.nn as nn
+from torch.nn.modules import dropout
 
 class EmbeddingLayer(nn.Module):
     def __init__(self, vocab_size: int, embed_dim: int):
@@ -50,3 +51,48 @@ def _create_nopeak_mask(trg):
 
 class MultiHeadAttention(nn.Module):
     
+    def __init__(self, embed_dim, n_head, dropout = 0.1):
+        super(MultiHeadAttention, self).__init__()
+
+        self.embed_dim = embed_dim
+        self.n_head = n_head
+        self.dk = embed_dim // n_head
+        self.dv = embed_dim // n_head
+
+        self.linear_q = nn.Linear(embed_dim, embed_dim, bias = False)
+        self.linear_v = nn.Linear(embed_dim, embed_dim, bias = False)
+        self.linear_k = nn.Linear(embed_dim, embed_dim, bias = False)
+        self.linear_f = nn.Linear(embed_dim, embed_dim, bias = False)
+
+        self.attention = ScaleDotProductAttention(self.dk, dropout = dropout)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, q, k, v, mask):
+        
+        batch_size, n_head, dk, dv = q.size(0), self.n_head, self.dk, self.dv
+
+        q = self.linear_q(q).view(batch_size, -1, n_head, dk)
+        k = self.linear_k(k).view(batch_size, -1, n_head, dk)
+        v = self.linear_v(v).view(batch_size, -1, n_head, dv)
+
+        q = q.transpose(1,2)
+        k = k.transpose(1,2)
+        v = v.transpose(1,2)
+
+        scores = self.attention(q, k, v, mask)
+
+        scores = scores.transpose(1, 2).contiguous().view(batch_size, -1, self.embed_dim)
+
+        scores = self.linear_f(scores)
+        return scores
+
+class ScaleDotProductAttention(nn.Module):
+
+    def __init__(self, d_k, dropout):        
+        super(ScaleDotProductAttention, self).__init__()
+        self.sqrt_dk = d_k**0.5
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self,):
+        
