@@ -103,3 +103,20 @@ class ScaleDotProductAttention(nn.Module):
         attention = self.dropout(nn.Softmax(attention, dim=-1))
         output = torch.matmul(attention, v)
         return output
+
+class PositionWiseFeedForward(nn.Module):
+
+    def __init__(self, embed_dim, d_ff = 2048, dropout = 0.1):
+        super(PositionWiseFeedForward, self).__init__()
+        self.w_1 = nn.Linear(embed_dim, d_ff)
+        self.w_2 = nn.Linear(d_ff, embed_dim)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        x = self.w_1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.w_2(x)
+        return x
+
