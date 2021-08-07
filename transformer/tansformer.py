@@ -91,8 +91,15 @@ class ScaleDotProductAttention(nn.Module):
 
     def __init__(self, d_k, dropout):        
         super(ScaleDotProductAttention, self).__init__()
-        self.sqrt_dk = d_k**0.5
+        self.sqrt_dk = math.sqrt(d_k)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self,):
-        
+    def forward(self, q, k, v, mask):
+        attention = torch.matmul(q,k.transpose(-2, -1)) / self.sqrt_dk
+        if mask is not None:
+            mask = mask.unsqueeze(1)
+            attention = attention.masked_fill(~mask, -1e9)
+
+        attention = self.dropout(nn.Softmax(attention, dim=-1))
+        output = torch.matmul(attention, v)
+        return output
