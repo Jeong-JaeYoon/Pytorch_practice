@@ -1,10 +1,13 @@
 # 해당 코드는 아래의 Reference를 참고해서 만들었습니다.
+# 부족한 코드
 # http://incredible.ai/nlp/2020/02/29/Transformer/
+# https://hongl.tistory.com/194
 
 import math
 import torch
 import torch.nn as nn
 from torch.nn.modules import dropout
+from torch.nn.modules.normalization import LayerNorm
 
 class EmbeddingLayer(nn.Module):
     def __init__(self, vocab_size: int, embed_dim: int):
@@ -120,3 +123,28 @@ class PositionWiseFeedForward(nn.Module):
         x = self.w_2(x)
         return x
 
+class EncoderLayer(nn.Module):
+
+    def __init__(self, embed_dim, n_head, dropout):
+        super(EncoderLayer, self).__init__()
+        self.attention = MultiHeadAttention(embed_dim = embed_dim, n_head = n_head)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.dropout1 = nn.Dropout(p = dropout)
+
+        self.ff = PositionWiseFeedForward(embed_dim = embed_dim)
+        self.norm2 = nn.LayerNorm(embed_dim)
+        self.dropout2 = nn.Dropout(p = dropout)
+
+    def forward(self, x, src_mask):
+
+        _x = x
+        x = self.attention(q = x, k = x, v = x, mask = src_mask)
+        x = self.norm1(x + _x)
+        x = self.dropout1(x)
+
+        _x = x
+        x = self.ff(x)
+        x = self.norm2(x + _x)
+        x = self.dropout2(x)
+
+        return x
