@@ -2,6 +2,7 @@
 # 부족한 코드
 # http://incredible.ai/nlp/2020/02/29/Transformer/
 # https://hongl.tistory.com/194
+# https://github.com/hyunwoongko/transformer
 
 import math
 import torch
@@ -97,7 +98,7 @@ class ScaleDotProductAttention(nn.Module):
         self.sqrt_dk = math.sqrt(d_k)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, q, k, v, mask):
+    def forward(self, q, k, v, mask = None):
         attention = torch.matmul(q,k.transpose(-2, -1)) / self.sqrt_dk
         if mask is not None:
             mask = mask.unsqueeze(1)
@@ -125,13 +126,13 @@ class PositionWiseFeedForward(nn.Module):
 
 class EncoderLayer(nn.Module):
 
-    def __init__(self, embed_dim, n_head, dropout):
+    def __init__(self, embed_dim, n_head, d_ff, dropout):
         super(EncoderLayer, self).__init__()
-        self.attention = MultiHeadAttention(embed_dim = embed_dim, n_head = n_head)
+        self.attention = MultiHeadAttention(embed_dim = embed_dim, n_head = n_head, dropout = dropout)
         self.norm1 = nn.LayerNorm(embed_dim)
         self.dropout1 = nn.Dropout(p = dropout)
 
-        self.ff = PositionWiseFeedForward(embed_dim = embed_dim)
+        self.ff = PositionWiseFeedForward(embed_dim = embed_dim, d_ff = d_ff, dropout = dropout)
         self.norm2 = nn.LayerNorm(embed_dim)
         self.dropout2 = nn.Dropout(p = dropout)
 
@@ -148,3 +149,61 @@ class EncoderLayer(nn.Module):
         x = self.dropout2(x)
 
         return x
+
+class Encoder(nn.Module):
+    
+    def __init__(self, vocab_size, embed_dim, dropout, max_seq_len, d_ff, n_head, n_layers):
+        super().__init__()
+        self.embed = EmbeddingLayer(vocab_size = vocab_size, embed_dim = embed_dim)
+        self.position = PositionalEncoding(embed_dim = embed_dim, dropout = dropout, max_seq_len = max_seq_len)
+        self.layers = nn.ModuleList([EncoderLayer(embed_dim = embed_dim, n_head = n_head, d_ff = d_ff, dropout = dropout) for _ in range(n_layers)])
+
+    def forward(self, x, src_mask):
+        x = self.embed(x)
+        x = self.position(x)
+
+        for layer in self.layers:
+            x = layer(x, src_mask)
+
+        return x
+
+class DecoderLayer(nn.Module):
+    
+    def __init__(self, embed_dim, n_head, dropout, d_ff):
+        super(DecoderLayer, self).__init__()
+        self.masked_attention = MultiHeadAttention(embed_dim = embed_dim, n_head = n_head, dropout = dropout)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.dropout1 = nn.Dropout(p = dropout)
+
+        self.enc_attention = MultiHeadAttention(embed_dim = embed_dim, n_head = n_head, dropout = dropout)
+        self.norm2 = nn.LayerNorm(embed_dim)
+        self.dropout2 = nn.Dropout(p = dropout)
+
+        self.ff = PositionWiseFeedForward(embed_dim, d_ff = d_ff, dropout = dropout)
+        self.norm3 = nn.LayerNorm(embed_dim)
+        self.dropout3 = nn.Dropout(p = dropout)
+
+    def forward(self, dec, enc, src_mask, trg_mask):
+        
+        _x = dec
+        x = self.masked_attention(q = dec, k = dec, v = dec, mask = trg_mask)
+        x = self.norm1(x + _x)
+        x = self.dropout1(x)
+
+        if enc is not None:
+            _x = x
+            x = self.enc_attention(q = x, k = enc, v = enc, mask = src_mask)
+            x = self.norm2(x + _x)
+            x = self.dropout2(x)
+
+        _x = x
+        x = self.ff(x)
+        x = self.norm3(x + _x)
+        x = self.dropout3(x)
+
+        return x
+
+class Decoder(nn.Module):
+
+    def __init__(self):
+        super().__init__()
