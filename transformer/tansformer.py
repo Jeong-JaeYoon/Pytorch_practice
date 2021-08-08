@@ -1,5 +1,5 @@
 # 해당 코드는 아래의 Reference를 참고해서 만들었습니다.
-# 부족한 코드
+# 부족한 실력으로 모델 부분만 구현했습니다.
 # http://incredible.ai/nlp/2020/02/29/Transformer/
 # https://hongl.tistory.com/194
 # https://github.com/hyunwoongko/transformer
@@ -33,25 +33,8 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
     
     def forward(self, x):
+        
         return x + self.pe[:, :x.size(1)].detach()
-
-def create_mask(src: torch.Tensor, trg: torch.Tensor, src_pad_idx: int, trg_pad_idx: int):
-    src_mask = _create_padding_mask(src, src_pad_idx)
-    trg_mask = None
-    if trg is not None:
-        trg_mask = _create_padding_mask(trg, trg_pad_idx)
-        nopeak_mask = _create_nopeak_mask(trg)
-        trg_mask = trg_mask & nopeak_mask
-
-    return src_mask, trg_mask
-
-def _create_padding_mask(seq: torch.Tensor, pad_idx: int):
-    return (seq != pad_idx).unsqueeze(-2)
-
-def _create_nopeak_mask(trg):
-    batch_size, seq_len = trg.size()
-    nopeak_mask = (1 - torch.triu(torch.ones(1, seq_len, seq_len, device = trg.device), diagonal=1)).bool()
-    return nopeak_mask
 
 class MultiHeadAttention(nn.Module):
     
@@ -89,6 +72,7 @@ class MultiHeadAttention(nn.Module):
         scores = scores.transpose(1, 2).contiguous().view(batch_size, -1, self.embed_dim)
 
         scores = self.linear_f(scores)
+        
         return scores
 
 class ScaleDotProductAttention(nn.Module):
@@ -106,6 +90,7 @@ class ScaleDotProductAttention(nn.Module):
 
         attention = self.dropout(nn.Softmax(attention, dim=-1))
         output = torch.matmul(attention, v)
+        
         return output
 
 class PositionWiseFeedForward(nn.Module):
@@ -122,6 +107,7 @@ class PositionWiseFeedForward(nn.Module):
         x = self.relu(x)
         x = self.dropout(x)
         x = self.w_2(x)
+        
         return x
 
 class EncoderLayer(nn.Module):
@@ -224,5 +210,41 @@ class Decoder(nn.Module):
             trg = layer(trg, src, src_mask, trg_mask)
 
         output = self.linear(trg)
+        
         return output
 
+class Transformer(nn.Module):
+    
+    def __init__(self, vocab_size, embed_dim, dropout, max_seq_len, d_ff, n_head, n_layers, src_pad_idx, trg_pad_idx):
+        super(Transformer, self).__init__()
+        self.encoder = Encoder(vocab_size = vocab_size, embed_dim = embed_dim, dropout = dropout, max_seq_len = max_seq_len, d_ff = d_ff, n_head = n_head, n_layers = n_layers)
+        self.decoder = Decoder(vocab_size = vocab_size, embed_dim = embed_dim, max_seq_len = max_seq_len, dropout = dropout, d_ff = d_ff, n_head = n_head, n_layers = n_layers)
+        self.src_pad_idx = src_pad_idx
+        self.trg_pad_idx = trg_pad_idx
+
+    def forwrad(self, src, trg):
+        src_mask, trg_mask = self.create_mask(src = src, trg = trg, src_pad_idx = self.src_pad_idx, trg_pad_idx = self.trg_pad_idx)
+
+        enc_src = self.encoder(src ,src_mask)
+        output = self.decoder(trg, enc_src, trg_mask, src_mask)
+        
+        return output
+
+    def create_mask(src: torch.Tensor, trg: torch.Tensor, src_pad_idx: int, trg_pad_idx: int):
+        src_mask = _create_padding_mask(src, src_pad_idx)
+        trg_mask = None
+        if trg is not None:
+            trg_mask = _create_padding_mask(trg, trg_pad_idx)
+            nopeak_mask = _create_nopeak_mask(trg)
+            trg_mask = trg_mask & nopeak_mask
+
+        return src_mask, trg_mask
+
+    def _create_padding_mask(seq: torch.Tensor, pad_idx: int):
+        return (seq != pad_idx).unsqueeze(-2)
+
+    def _create_nopeak_mask(trg):
+        batch_size, seq_len = trg.size()
+        nopeak_mask = (1 - torch.triu(torch.ones(1, seq_len, seq_len, device = trg.device), diagonal=1)).bool()
+        
+        return nopeak_mask
