@@ -157,11 +157,13 @@ class Encoder(nn.Module):
         self.embed = EmbeddingLayer(vocab_size = vocab_size, embed_dim = embed_dim)
         self.position = PositionalEncoding(embed_dim = embed_dim, dropout = dropout, max_seq_len = max_seq_len)
         self.layers = nn.ModuleList([EncoderLayer(embed_dim = embed_dim, n_head = n_head, d_ff = d_ff, dropout = dropout) for _ in range(n_layers)])
+        self.dropout = nn.Dropout(p = dropout)
 
     def forward(self, x, src_mask):
-        x = self.embed(x)
-        x = self.position(x)
-
+        emb = self.embed(x)
+        pos = self.position(x)
+        x = self.dropout(emb + pos)
+        
         for layer in self.layers:
             x = layer(x, src_mask)
 
@@ -205,5 +207,22 @@ class DecoderLayer(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self):
+    def __init__(self, vocab_size, embed_dim, max_seq_len, dropout, d_ff, n_head, n_layers):
         super().__init__()
+        self.embed = EmbeddingLayer(vocab_size = vocab_size, embed_dim = embed_dim)
+        self.position = PositionalEncoding(embed_dim = embed_dim, dropout = dropout, max_seq_len = max_seq_len)
+        self.layers = nn.ModuleList([DecoderLayer(embed_dim = embed_dim, n_head = n_head, dropout = dropout, d_ff = d_ff) for _ in n_layers])
+        self.linear = nn.Linear(embed_dim, vocab_size)
+        self.dropout = nn.Dropout(p = dropout)
+
+    def forward(self, trg, src, trg_mask, src_mask):
+        emb = self.embed(trg)
+        pos = self.position(trg)
+        trg = self.dropout(emb + pos)
+
+        for layer in self.layers:
+            trg = layer(trg, src, src_mask, trg_mask)
+
+        output = self.linear(trg)
+        return output
+
