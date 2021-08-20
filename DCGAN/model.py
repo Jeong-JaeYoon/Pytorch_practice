@@ -44,3 +44,6 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         
         self.leakyrelu = nn.LeakyReLU(0.2, )
+
+    def forward(self, x):
+        
